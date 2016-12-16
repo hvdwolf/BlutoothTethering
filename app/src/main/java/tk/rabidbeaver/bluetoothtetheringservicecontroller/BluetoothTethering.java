@@ -2,6 +2,7 @@ package tk.rabidbeaver.bluetoothtetheringservicecontroller;
 
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
@@ -9,11 +10,14 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.util.Set;
 
 
 public class BluetoothTethering extends AppCompatActivity {
@@ -41,6 +45,43 @@ public class BluetoothTethering extends AppCompatActivity {
                     toggleTethering();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
+                }
+            }
+        });
+
+        Button button = (Button) findViewById(R.id.panbtn);
+        button.setOnClickListener(new Button.OnClickListener(){
+            public void onClick(View v){
+                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+                Class<?> classBluetoothPan = null;
+                Constructor<?> BTPanCtor = null;
+                Object BTSrvInstance = null;
+                Method mBTPanConnect = null;
+
+                try {
+                    classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
+                    mBTPanConnect = classBluetoothPan.getDeclaredMethod("connect", BluetoothDevice.class);
+                    BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
+                    BTPanCtor.setAccessible(true);
+                    BTSrvInstance = BTPanCtor.newInstance(v.getContext(), new BTPanServiceListener(v.getContext()));
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+// If there are paired devices
+                if (pairedDevices.size() > 0) {
+                    // Loop through paired devices
+                    for (BluetoothDevice device : pairedDevices) {
+                        try{
+                            mBTPanConnect.invoke(BTSrvInstance, device);
+                        }
+                        catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
         });
