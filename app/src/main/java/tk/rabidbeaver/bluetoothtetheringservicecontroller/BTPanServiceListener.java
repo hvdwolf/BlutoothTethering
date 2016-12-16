@@ -1,4 +1,4 @@
-package com.solutions.developer.android.com.bluetoothtethering;
+package tk.rabidbeaver.bluetoothtetheringservicecontroller;
 
 import java.lang.reflect.InvocationTargetException;
 
