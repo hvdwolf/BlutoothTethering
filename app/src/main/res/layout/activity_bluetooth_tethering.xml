@@ -14,7 +14,12 @@
         android:id="@+id/panbtn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Connect Pan"/>
+        android:text="Connect Pan"
+        android:layout_toRightOf="@+id/devspin" />
+    <Spinner
+        android:id="@+id/devspin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
     <Switch
         android:id="@+id/wifi_switch"
         android:layout_width="wrap_content"

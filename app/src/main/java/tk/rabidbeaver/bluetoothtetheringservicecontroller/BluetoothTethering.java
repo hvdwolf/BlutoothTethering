@@ -8,11 +8,13 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CompoundButton;
+import android.widget.Spinner;
 import android.widget.Switch;
 
 import java.lang.reflect.Constructor;
@@ -34,59 +36,95 @@ public class BluetoothTethering extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bluetooth_tethering);
-
+        toggleTethering(false);
         toggle = (Switch) findViewById(R.id.wifi_switch);
-        toggle.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        toggle.setOnClickListener(new Switch.OnClickListener(){
+            public void onClick(View v){
                 try {
                     mBluetoothAdapter = getBTAdapter();
                     mBluetoothAdapter.enable();
                     Thread.sleep(100);
-                    toggleTethering();
+                    toggleTethering(true);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
         });
 
+        BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+        PairedDev[] pda = new PairedDev[pairedDevices.size()];
+        int i = 0;
+        for (BluetoothDevice device : pairedDevices) {
+            Log.d("BTTether",device.getName()+", "+device.getAddress());
+            pda[i] = new PairedDev(device);
+            i++;
+        }
+
+        final Spinner spinner = (Spinner) findViewById(R.id.devspin);
+        ArrayAdapter spinnerArrayAdapter = new ArrayAdapter(this,
+                android.R.layout.simple_spinner_dropdown_item,
+                pda);
+        spinner.setAdapter(spinnerArrayAdapter);
+
         Button button = (Button) findViewById(R.id.panbtn);
         button.setOnClickListener(new Button.OnClickListener(){
             public void onClick(View v){
-                BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-                Class<?> classBluetoothPan = null;
-                Constructor<?> BTPanCtor = null;
-                Object BTSrvInstance = null;
-                Method mBTPanConnect = null;
+                String sClassName = "android.bluetooth.BluetoothPan";
 
-                try {
-                    classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
-                    mBTPanConnect = classBluetoothPan.getDeclaredMethod("connect", BluetoothDevice.class);
-                    BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
-                    BTPanCtor.setAccessible(true);
-                    BTSrvInstance = BTPanCtor.newInstance(v.getContext(), new BTPanServiceListener(v.getContext()));
-                } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                class BTPanClientListener implements BluetoothProfile.ServiceListener {
 
-                Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
-// If there are paired devices
-                if (pairedDevices.size() > 0) {
-                    // Loop through paired devices
-                    for (BluetoothDevice device : pairedDevices) {
-                        try{
-                            mBTPanConnect.invoke(BTSrvInstance, device);
-                        }
-                        catch (Exception e) {
-                            e.printStackTrace();
+                    private final Context context;
+
+                    public BTPanClientListener(final Context context) {
+                        this.context = context;
+                    }
+
+                    @Override
+                    public void onServiceConnected(final int profile,
+                                                   final BluetoothProfile proxy) {
+                        Log.e("MyApp", "BTPan proxy connected");
+                        String dev = ((PairedDev)spinner.getSelectedItem()).getDev();
+                        BluetoothDevice device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(dev); //e.g. this line gets the hardware address for the bluetooth device with MAC AA:BB:CC:DD:EE:FF. You can use any BluetoothDevice
+                        try {
+                            Method connectMethod = proxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
+                            if(!((Boolean) connectMethod.invoke(proxy, device))){
+                                Log.e("MyApp", "Unable to start connection");
+                            }
+                        } catch (Exception e) {
+                            Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
                         }
                     }
+
+                    @Override
+                    public void onServiceDisconnected(final int profile) {
+                    }
+                }
+
+                try {
+
+                    Class<?> classBluetoothPan = Class.forName(sClassName);
+
+                    Constructor<?> ctor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
+                    ctor.setAccessible(true);
+                    Object instance = ctor.newInstance(getApplicationContext(), new BTPanClientListener(getApplicationContext()));
+                } catch (Exception e) {
+                    Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
                 }
             }
         });
     }
 
+    private class PairedDev {
+        String dev;
+        String name;
+        public PairedDev(BluetoothDevice btd){
+            name = btd.getName();
+            dev = btd.getAddress();
+        }
+        public String toString(){return name;}
+        public String getDev(){return dev;}
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -110,7 +148,7 @@ public class BluetoothTethering extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    public void toggleTethering() {
+    public void toggleTethering(boolean enable) {
         Context MyContext = getApplicationContext();
         mBluetoothAdapter = getBTAdapter();
         String sClassName = "android.bluetooth.BluetoothPan";
@@ -120,7 +158,7 @@ public class BluetoothTethering extends AppCompatActivity {
             BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
             BTPanCtor.setAccessible(true);
 
-            BTSrvInstance = BTPanCtor.newInstance(MyContext, new BTPanServiceListener(MyContext));
+            BTSrvInstance = BTPanCtor.newInstance(MyContext, new BTPanServiceListener(MyContext, enable));
             Thread.sleep(250);
 
         } catch (ClassNotFoundException e) {
@@ -140,7 +178,7 @@ public class BluetoothTethering extends AppCompatActivity {
         }
     }
 
-    public  static void changeToggleState(boolean state) {
+    public  static void setToggleState(boolean state) {
         try{
             if(state){
                 toggle.setChecked(BTPanServiceListener.state);
