@@ -6,14 +6,15 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.Switch;
 
@@ -30,33 +31,25 @@ public class BluetoothTethering extends AppCompatActivity {
     Object BTSrvInstance = null;
     Class<?> noparams[] = {};
     Method mIsBTTetheringOn;
-    public static Switch toggle ;
+    public static Button start ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bluetooth_tethering);
-        toggleTethering(false);
-        toggle = (Switch) findViewById(R.id.wifi_switch);
-        toggle.setOnClickListener(new Switch.OnClickListener(){
-            public void onClick(View v){
-                try {
-                    mBluetoothAdapter = getBTAdapter();
-                    mBluetoothAdapter.enable();
-                    Thread.sleep(100);
-                    toggleTethering(true);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
 
-        BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        SharedPreferences prefs = getSharedPreferences("Settings", MODE_PRIVATE);
+        String selectedDevice = prefs.getString("device", null);
+        boolean autoconnect = prefs.getBoolean("autoconnect", false);
+        boolean autotether = prefs.getBoolean("autotether", false);
+
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
         PairedDev[] pda = new PairedDev[pairedDevices.size()];
-        int i = 0;
+        int i = 0, selectedIDX = 0;
         for (BluetoothDevice device : pairedDevices) {
             Log.d("BTTether",device.getName()+", "+device.getAddress());
+            if (selectedDevice != null && device.getAddress().contentEquals(selectedDevice)) selectedIDX = i;
             pda[i] = new PairedDev(device);
             i++;
         }
@@ -66,6 +59,54 @@ public class BluetoothTethering extends AppCompatActivity {
                 android.R.layout.simple_spinner_dropdown_item,
                 pda);
         spinner.setAdapter(spinnerArrayAdapter);
+
+        spinner.setSelection(selectedIDX);
+
+        Switch clientswitch = (Switch) findViewById(R.id.clisw);
+        clientswitch.setChecked(autoconnect);
+        clientswitch.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener(){
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences.Editor editor = getSharedPreferences("Settings", MODE_PRIVATE).edit();
+                editor.putBoolean("autoconnect", isChecked);
+                editor.putString("device", ((PairedDev) spinner.getSelectedItem()).getDev());
+                editor.commit();
+            }
+        });
+
+        Switch serverswitch = (Switch) findViewById(R.id.srvsw);
+        serverswitch.setChecked(autotether);
+        serverswitch.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener(){
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences.Editor editor = getSharedPreferences("Settings", MODE_PRIVATE).edit();
+                editor.putBoolean("autotether", isChecked);
+                editor.commit();
+            }
+        });
+
+        start = (Button) findViewById(R.id.srvbtn);
+        start.setOnClickListener(new Switch.OnClickListener(){
+            public void onClick(View v){
+                try {
+                    mBluetoothAdapter = getBTAdapter();
+                    mBluetoothAdapter.enable();
+                    Thread.sleep(100);
+                    enableTethering();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
+        Button sett = (Button) findViewById(R.id.btset);
+        sett.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View v) {
+                Intent intentOpenBluetoothSettings = new Intent();
+                intentOpenBluetoothSettings.setAction(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS);
+                startActivity(intentOpenBluetoothSettings);
+            }
+        });
 
         Button button = (Button) findViewById(R.id.panbtn);
         button.setOnClickListener(new Button.OnClickListener(){
@@ -126,43 +167,16 @@ public class BluetoothTethering extends AppCompatActivity {
         public String getDev(){return dev;}
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_bluetooth_tethering, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    public void toggleTethering(boolean enable) {
-        Context MyContext = getApplicationContext();
+    public void enableTethering() {
         mBluetoothAdapter = getBTAdapter();
-        String sClassName = "android.bluetooth.BluetoothPan";
         try {
             classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
             mIsBTTetheringOn = classBluetoothPan.getDeclaredMethod("isTetheringOn", noparams);
             BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
             BTPanCtor.setAccessible(true);
 
-            BTSrvInstance = BTPanCtor.newInstance(MyContext, new BTPanServiceListener(MyContext, enable));
+            BTSrvInstance = BTPanCtor.newInstance(getApplicationContext(), new BTPanServiceEnabler());
             Thread.sleep(250);
-
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -173,20 +187,8 @@ public class BluetoothTethering extends AppCompatActivity {
         if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1)
             return BluetoothAdapter.getDefaultAdapter();
         else {
-            BluetoothManager bm = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
+            BluetoothManager bm = (BluetoothManager) getApplicationContext().getSystemService(BLUETOOTH_SERVICE);
             return bm.getAdapter();
-        }
-    }
-
-    public  static void setToggleState(boolean state) {
-        try{
-            if(state){
-                toggle.setChecked(BTPanServiceListener.state);
-            }else {
-                toggle.setChecked(BTPanServiceListener.state);
-            }
-        }catch (Exception e){
-            e.printStackTrace();
         }
     }
 }

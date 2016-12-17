@@ -10,25 +10,64 @@
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:src="@drawable/bluetooth" />
-    <Button
-        android:id="@+id/panbtn"
+    <LinearLayout
+        android:id="@+id/laytop"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Connect Pan"
-        android:layout_toRightOf="@+id/devspin" />
-    <Spinner
-        android:id="@+id/devspin"
+        android:orientation="horizontal"
+        android:layout_centerHorizontal="true" >
+        <Spinner
+            android:id="@+id/devspin"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+        <Button
+            android:id="@+id/panbtn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Connect Pan" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/srvbtn"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:text="Start Service"
+        android:layout_above="@+id/srvsw"
+        android:layout_centerHorizontal="true"/>
     <Switch
-        android:id="@+id/wifi_switch"
+        android:id="@+id/clisw"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/laytop"
+        android:layout_centerHorizontal="true"
+        android:checked="false"
+        android:text="Auto Connect PAN"
+        android:textOff="OFF"
+        android:textOn="ON" />
+    <TextView
+        android:id="@+id/warn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/clisw"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:text="The Auto Connect PAN setting will only work for devices that will establish some type of bluetooth connection automatically, such as car radios. This will NOT function for a tablet."/>
+    <Button
+        android:id="@+id/btset"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/warn"
+        android:layout_centerHorizontal="true"
+        android:text="Launch Bluetooth Settings" />
+    <Switch
+        android:id="@+id/srvsw"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="10dp"
         android:layout_centerInParent="true"
         android:checked="false"
-        android:text="Bluetooth Tethering"
+        android:text="Auto Bluetooth Tethering"
         android:textColor="@android:color/black"
         android:textOff="OFF"
         android:textOn="ON" />
