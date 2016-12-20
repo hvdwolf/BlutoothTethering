@@ -16,7 +16,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_centerHorizontal="true" >
-        <Spinner
+        <tk.rabidbeaver.bluetoothtetheringservicecontroller.MultiSpinner
             android:id="@+id/devspin"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />

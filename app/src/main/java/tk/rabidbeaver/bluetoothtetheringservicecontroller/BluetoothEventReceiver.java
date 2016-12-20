@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Log;
+import java.util.Set;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -18,15 +19,20 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
     Class<?> classBluetoothPan = null;
     Constructor<?> BTPanCtor = null;
     Object BTSrvInstance = null;
-    Class<?> noparams[] = {};
-    Method mIsBTTetheringOn;
     BluetoothDevice device;
 
+    private boolean setContainsString(Set<String> set, String string){
+        Object[] setarr = set.toArray();
+        for (int i=0; i<set.size(); i++){
+            if (((String)setarr[i]).contentEquals(string)) return true;
+        }
+        return false;
+    }
 
     @Override
     public void onReceive(Context context, Intent intent) {
         SharedPreferences prefs = context.getSharedPreferences("Settings", MODE_PRIVATE);
-        String selectedDevice = prefs.getString("device", null);
+        Set<String> selectedDevices = prefs.getStringSet("devices", null);
         boolean autoconnect = prefs.getBoolean("autoconnect", false);
         boolean autotether = prefs.getBoolean("autotether", false);
 
@@ -37,7 +43,6 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
             try {
                 Thread.sleep(250);
                 classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
-                mIsBTTetheringOn = classBluetoothPan.getDeclaredMethod("isTetheringOn", noparams);
                 BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
                 BTPanCtor.setAccessible(true);
 
@@ -54,24 +59,31 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
             device = intent.getParcelableExtra("android.bluetooth.device.extra.DEVICE");
             if (device != null) {
                 Log.d("BluetoothEventReceiver", "Bluetooth has connected to " + device.getName());
-                if (autoconnect && selectedDevice != null && device.getAddress().contentEquals(selectedDevice)) {
-                    // TODO if device is in auto-tether list, and device not currently tethering, connect PAN
-                    // TODO in UI: warn user that this is for car radio, not tablet, since tablet wont auto connect
+                if (autoconnect && selectedDevices != null && selectedDevices.size() > 0 && setContainsString(selectedDevices, device.getAddress())) {
+                    // Currently this will try to connect to this device, regardless of whether or not
+                    // it is already connected to *something*. I'm not sure if this matters or not.
+
                     String sClassName = "android.bluetooth.BluetoothPan";
 
                     class BTPanClientListener implements BluetoothProfile.ServiceListener {
-
                         @Override
-                        public void onServiceConnected(final int profile,
-                                                       final BluetoothProfile proxy) {
-                            Log.e("MyApp", "BTPan proxy connected");
+                        public void onServiceConnected(final int profile, final BluetoothProfile proxy) {
+                            Log.e("BluetoothEventReceiver", "BTPan proxy connected");
                             try {
                                 Method connectMethod = proxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
                                 if(!((Boolean) connectMethod.invoke(proxy, device))){
-                                    Log.e("MyApp", "Unable to start connection");
+                                    Log.e("BluetoothEventReceiver", "Unable to start connection");
+                                    //TODO: if we get here, it means that the authorized device has
+                                    // established a bluetooth connection with THIS device, but we
+                                    // were unsuccessful at establishing a PAN connection with it.
+                                    // Probably means that the PAN service is not running on THAT
+                                    // device. We should keep trying until THAT device is no longer
+                                    // connected. Probably use BluetoothPan.getConnectionState(BluetoothDevice)
+                                    // to validate that it is still connected.
+
                                 }
                             } catch (Exception e) {
-                                Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
+                                Log.e("BluetoothEventReceiver", "Unable to reflect android.bluetooth.BluetoothPan", e);
                             }
                         }
 
@@ -80,14 +92,12 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
                     }
 
                     try {
-
                         Class<?> classBluetoothPan = Class.forName(sClassName);
-
                         Constructor<?> ctor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
                         ctor.setAccessible(true);
                         ctor.newInstance(context, new BTPanClientListener());
                     } catch (Exception e) {
-                        Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
+                        Log.e("BluetoothEventReceiver", "Unable to reflect android.bluetooth.BluetoothPan", e);
                     }
                 }
             }

@@ -14,11 +14,11 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.Spinner;
 import android.widget.Switch;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.Set;
 
 public class BluetoothTethering extends AppCompatActivity {
@@ -26,32 +26,43 @@ public class BluetoothTethering extends AppCompatActivity {
     Constructor<?> BTPanCtor = null;
     Object BTSrvInstance = null;
 
+    private boolean setContainsString(Set<String> set, String string){
+        Object[] setarr = set.toArray();
+        for (int i=0; i<set.size(); i++){
+            if (((String)setarr[i]).contentEquals(string)) return true;
+        }
+        return false;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bluetooth_tethering);
 
         SharedPreferences prefs = getSharedPreferences("Settings", MODE_PRIVATE);
-        String selectedDevice = prefs.getString("device", null);
+        Set<String> selectedDevices = prefs.getStringSet("devices", new HashSet<String>());
+
         boolean autoconnect = prefs.getBoolean("autoconnect", false);
         boolean autotether = prefs.getBoolean("autotether", false);
 
         BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
         PairedDev[] pda = new PairedDev[pairedDevices.size()];
-        int i = 0, selectedIDX = 0;
+        boolean[] selected = new boolean[pairedDevices.size()];
+
+        int i = 0;
         for (BluetoothDevice device : pairedDevices) {
-            Log.d("BTTether",device.getName()+", "+device.getAddress());
-            if (selectedDevice != null && device.getAddress().contentEquals(selectedDevice)) selectedIDX = i;
+            Log.d("BluetoothTethering",device.getName()+", "+device.getAddress());
+            if (selectedDevices.size() > 0 && setContainsString(selectedDevices, device.getAddress())) selected[i] = true;
             pda[i] = new PairedDev(device);
             i++;
         }
 
-        final Spinner spinner = (Spinner) findViewById(R.id.devspin);
-        ArrayAdapter spinnerArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, pda);
-        spinner.setAdapter(spinnerArrayAdapter);
+        final MultiSpinner spinner = (MultiSpinner) findViewById(R.id.devspin);
+        final ArrayAdapter spinnerArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, pda);
+        spinner.setAdapter(spinnerArrayAdapter, false, null);
 
-        spinner.setSelection(selectedIDX);
+        spinner.setSelected(selected);
 
         Switch nswitch = (Switch) findViewById(R.id.clisw);
         nswitch.setChecked(autoconnect);
@@ -60,7 +71,11 @@ public class BluetoothTethering extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 SharedPreferences.Editor editor = getSharedPreferences("Settings", MODE_PRIVATE).edit();
                 editor.putBoolean("autoconnect", isChecked);
-                editor.putString("device", ((PairedDev) spinner.getSelectedItem()).getDev());
+                Set<String> selectedItems = new HashSet<>();
+                for (int i=0; i<spinnerArrayAdapter.getCount(); i++){
+                    if (spinner.getSelected()[i]) selectedItems.add(((PairedDev)spinnerArrayAdapter.getItem(i)).getDev());
+                }
+                editor.putStringSet("devices", selectedItems);
                 editor.apply();
             }
         });
@@ -107,16 +122,20 @@ public class BluetoothTethering extends AppCompatActivity {
                 class BTPanClientListener implements BluetoothProfile.ServiceListener {
                     @Override
                     public void onServiceConnected(final int profile, final BluetoothProfile proxy) {
-                        Log.e("MyApp", "BTPan proxy connected");
-                        String dev = ((PairedDev)spinner.getSelectedItem()).getDev();
+                        Log.e("BluetoothTethering", "BTPan proxy connected");
+                        PairedDev selectedItem = null;
+                        for (int i=0; i<spinnerArrayAdapter.getCount(); i++){
+                            if (spinner.getSelected()[i]) selectedItem = (PairedDev) spinnerArrayAdapter.getItem(i);
+                        }
+                        String dev = selectedItem.getDev();
                         BluetoothDevice device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(dev); //e.g. this line gets the hardware address for the bluetooth device with MAC AA:BB:CC:DD:EE:FF. You can use any BluetoothDevice
                         try {
                             Method connectMethod = proxy.getClass().getDeclaredMethod("connect", BluetoothDevice.class);
                             if(!((Boolean) connectMethod.invoke(proxy, device))){
-                                Log.e("MyApp", "Unable to start connection");
+                                Log.e("BluetoothTethering", "Unable to start connection");
                             }
                         } catch (Exception e) {
-                            Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
+                            Log.e("BluetoothTethering", "Unable to reflect android.bluetooth.BluetoothPan", e);
                         }
                     }
 
@@ -131,7 +150,7 @@ public class BluetoothTethering extends AppCompatActivity {
                     ctor.setAccessible(true);
                     ctor.newInstance(getApplicationContext(), new BTPanClientListener());
                 } catch (Exception e) {
-                    Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
+                    Log.e("BluetoothTethering", "Unable to reflect android.bluetooth.BluetoothPan", e);
                 }
             }
         });
