@@ -1,9 +1,7 @@
 package tk.rabidbeaver.bluetoothtetheringservicecontroller;
 
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -14,25 +12,20 @@ import android.util.Log;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
-import static android.content.Context.BLUETOOTH_SERVICE;
 import static android.content.Context.MODE_PRIVATE;
 
 public class BluetoothEventReceiver extends BroadcastReceiver {
-    private BluetoothAdapter mBluetoothAdapter = null;
     Class<?> classBluetoothPan = null;
     Constructor<?> BTPanCtor = null;
     Object BTSrvInstance = null;
     Class<?> noparams[] = {};
     Method mIsBTTetheringOn;
-    private Context c;
     BluetoothDevice device;
 
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        c = context;
-
-        SharedPreferences prefs = c.getSharedPreferences("Settings", MODE_PRIVATE);
+        SharedPreferences prefs = context.getSharedPreferences("Settings", MODE_PRIVATE);
         String selectedDevice = prefs.getString("device", null);
         boolean autoconnect = prefs.getBoolean("autoconnect", false);
         boolean autotether = prefs.getBoolean("autotether", false);
@@ -43,11 +36,18 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
 
             try {
                 Thread.sleep(250);
-                enableTethering();
+                classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
+                mIsBTTetheringOn = classBluetoothPan.getDeclaredMethod("isTetheringOn", noparams);
+                BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
+                BTPanCtor.setAccessible(true);
+
+                BTSrvInstance = BTPanCtor.newInstance(context, new BTPanServiceEnabler());
+                Thread.sleep(250);
             } catch (Exception e){
                 e.printStackTrace();
             }
         }
+
         int connstate = intent.getIntExtra("android.bluetooth.adapter.extra.CONNECTION_STATE", -1);
         if (connstate == BluetoothAdapter.STATE_CONNECTED){
             Log.d("BluetoothEventReceiver","Bluetooth has CONNECTED");
@@ -60,12 +60,6 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
                     String sClassName = "android.bluetooth.BluetoothPan";
 
                     class BTPanClientListener implements BluetoothProfile.ServiceListener {
-
-                        private final Context context;
-
-                        public BTPanClientListener(final Context context) {
-                            this.context = context;
-                        }
 
                         @Override
                         public void onServiceConnected(final int profile,
@@ -82,8 +76,7 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
                         }
 
                         @Override
-                        public void onServiceDisconnected(final int profile) {
-                        }
+                        public void onServiceDisconnected(final int profile) {}
                     }
 
                     try {
@@ -92,14 +85,15 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
 
                         Constructor<?> ctor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
                         ctor.setAccessible(true);
-                        Object instance = ctor.newInstance(c, new BTPanClientListener(c));
+                        ctor.newInstance(context, new BTPanClientListener());
                     } catch (Exception e) {
                         Log.e("MyApp", "Unable to reflect android.bluetooth.BluetoothPan", e);
                     }
                 }
             }
         }
-/*
+
+/*        // This is debug code, used to just dump all the values from the received intent.
         Bundle bundle = intent.getExtras();
         if (bundle != null) {
             Set<String> keys = bundle.keySet();
@@ -110,43 +104,6 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
                 Log.e("BluetoothEventReceiver","[" + key + "=" + bundle.get(key)+"]");
             }
             Log.e("BluetoothEventReceiver","Dumping Intent end");
-        }
-*/
-    }
-
-    private class PairedDev {
-        String dev;
-        String name;
-        public PairedDev(BluetoothDevice btd){
-            name = btd.getName();
-            dev = btd.getAddress();
-        }
-        public String toString(){return name;}
-        public String getDev(){return dev;}
-    }
-
-    public void enableTethering() {
-        mBluetoothAdapter = getBTAdapter();
-        try {
-            classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
-            mIsBTTetheringOn = classBluetoothPan.getDeclaredMethod("isTetheringOn", noparams);
-            BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
-            BTPanCtor.setAccessible(true);
-
-            BTSrvInstance = BTPanCtor.newInstance(c, new BTPanServiceEnabler());
-            Thread.sleep(250);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    @SuppressLint("NewApi")
-    private BluetoothAdapter getBTAdapter() {
-        if (android.os.Build.VERSION.SDK_INT <= android.os.Build.VERSION_CODES.JELLY_BEAN_MR1)
-            return BluetoothAdapter.getDefaultAdapter();
-        else {
-            BluetoothManager bm = (BluetoothManager) c.getSystemService(BLUETOOTH_SERVICE);
-            return bm.getAdapter();
-        }
+        }*/
     }
 }
