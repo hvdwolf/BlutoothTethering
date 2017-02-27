@@ -7,7 +7,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 import android.util.Log;
+
+import java.util.Iterator;
 import java.util.Set;
 
 import java.lang.reflect.Constructor;
@@ -103,7 +106,7 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
             }
         }
 
-/*        // This is debug code, used to just dump all the values from the received intent.
+        /*// This is debug code, used to just dump all the values from the received intent.
         Bundle bundle = intent.getExtras();
         if (bundle != null) {
             Set<String> keys = bundle.keySet();
