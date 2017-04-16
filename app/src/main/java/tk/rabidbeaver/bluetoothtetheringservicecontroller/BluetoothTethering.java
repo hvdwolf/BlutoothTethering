@@ -1,5 +1,6 @@
 package tk.rabidbeaver.bluetoothtetheringservicecontroller;
 
+import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -7,7 +8,12 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -25,6 +31,7 @@ public class BluetoothTethering extends AppCompatActivity {
     Class<?> classBluetoothPan = null;
     Constructor<?> BTPanCtor = null;
     Object BTSrvInstance = null;
+    private static final int WRITE_SETTINGS_REQUEST_CONST = 37119;
 
     private boolean setContainsString(Set<String> set, String string){
         Object[] setarr = set.toArray();
@@ -44,6 +51,7 @@ public class BluetoothTethering extends AppCompatActivity {
 
         boolean autoconnect = prefs.getBoolean("autoconnect", false);
         boolean autotether = prefs.getBoolean("autotether", false);
+        boolean autooffwifi = prefs.getBoolean("autooffwifi", false);
 
         BluetoothAdapter mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
@@ -76,6 +84,17 @@ public class BluetoothTethering extends AppCompatActivity {
                     if (spinner.getSelected()[i]) selectedItems.add(((PairedDev)spinnerArrayAdapter.getItem(i)).getDev());
                 }
                 editor.putStringSet("devices", selectedItems);
+                editor.apply();
+            }
+        });
+
+        Switch wifiswitch = (Switch) findViewById(R.id.offwifi);
+        wifiswitch.setChecked(autooffwifi);
+        wifiswitch.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener(){
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                SharedPreferences.Editor editor = getSharedPreferences("Settings", MODE_PRIVATE).edit();
+                editor.putBoolean("autooffwifi", isChecked);
                 editor.apply();
             }
         });
@@ -168,14 +187,21 @@ public class BluetoothTethering extends AppCompatActivity {
     }
 
     private void enableTethering() {
-        try {
-            classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
-            BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
-            BTPanCtor.setAccessible(true);
-            BTSrvInstance = BTPanCtor.newInstance(getApplicationContext(), new BTPanServiceEnabler());
-            Thread.sleep(250);
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (!Settings.System.canWrite(this)){
+            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } else {
+            try {
+                classBluetoothPan = Class.forName("android.bluetooth.BluetoothPan");
+                BTPanCtor = classBluetoothPan.getDeclaredConstructor(Context.class, BluetoothProfile.ServiceListener.class);
+                BTPanCtor.setAccessible(true);
+                BTSrvInstance = BTPanCtor.newInstance(getApplicationContext(), new BTPanServiceEnabler());
+                Thread.sleep(250);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 }
