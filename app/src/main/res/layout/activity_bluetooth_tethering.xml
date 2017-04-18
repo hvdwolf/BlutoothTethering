@@ -59,14 +59,22 @@
         android:layout_below="@+id/warn"
         android:layout_centerHorizontal="true"
         android:checked="false"
-        android:text="Disable Wifi on PAN"
+        android:text="Disable Wifi"
         android:textOff="OFF"
         android:textOn="ON"/>
+    <TextView
+        android:id="@+id/wifilab"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/offwifi"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:text="China likes to auto-enable the wifi when the unit boots up. This is useless since we prefer low power bluetooth tethering, presents routing problems if it connects to a wifi after bluetooth, and presents a security risk. If you need to use wifi temporarily, remember to turn this switch OFF first."/>
     <Button
         android:id="@+id/btset"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/offwifi"
+        android:layout_below="@+id/wifilab"
         android:layout_centerHorizontal="true"
         android:text="Launch Bluetooth Settings" />
     <Switch

@@ -39,7 +39,7 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
         Set<String> selectedDevices = prefs.getStringSet("devices", null);
         boolean autoconnect = prefs.getBoolean("autoconnect", false);
         boolean autotether = prefs.getBoolean("autotether", false);
-        boolean autooffwifi = prefs.getBoolean("autooffwifi", false);
+        //boolean autooffwifi = prefs.getBoolean("autooffwifi", false);
 
         int state = intent.getIntExtra("android.bluetooth.adapter.extra.STATE", -1);
         if (autotether && state == BluetoothAdapter.STATE_ON){
@@ -62,7 +62,7 @@ public class BluetoothEventReceiver extends BroadcastReceiver {
         if (connstate == BluetoothAdapter.STATE_CONNECTED){
             Log.d("BluetoothEventReceiver","Bluetooth has CONNECTED");
 
-            if (autooffwifi) ((WifiManager)context.getSystemService(Context.WIFI_SERVICE)).setWifiEnabled(false);
+            //if (autooffwifi) ((WifiManager)context.getSystemService(Context.WIFI_SERVICE)).setWifiEnabled(false);
 
             device = intent.getParcelableExtra("android.bluetooth.device.extra.DEVICE");
             if (device != null) {
